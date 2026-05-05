@@ -1,5 +1,4 @@
-# First_Project_Unity
-It's prooobably going to be some kind of a flight game, I'm not sure about that, though
+# It's prooobably going to be some kind of a flight game, I'm not sure about that, though
 
 I'm using:
 1) FishNet (https://assetstore.unity.com/packages/tools/network/fishnet-networking-evolved-207815)
