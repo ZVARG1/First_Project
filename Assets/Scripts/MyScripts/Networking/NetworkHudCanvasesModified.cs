@@ -20,12 +20,11 @@ namespace FishNet.Example
 
         private CSteamID _currentLobbyId;
         protected Callback<LobbyCreated_t> _lobbyCreated;
-        
+        protected Callback<GameLobbyJoinRequested_t> _lobbyJoinRequested;
+
         private NetworkManager _networkManager;
         private LocalConnectionState _serverState = LocalConnectionState.Stopped;
         private LocalConnectionState _clientState = LocalConnectionState.Stopped;
-
-        protected Callback<GameLobbyJoinRequested_t> _lobbyJoinRequested;
 
         private void Start()
         {
@@ -54,15 +53,31 @@ namespace FishNet.Example
         {
             if (callback.m_eResult == EResult.k_EResultOK)
             {
-                _currentLobbyId = new CSteamID(callback.m_ulSteamIDLobby);
+                _currentLobbyId = (CSteamID)callback.m_ulSteamIDLobby;
                 Debug.Log($"Lobby Created Successfully! ID: {_currentLobbyId}");
+
+                // Optional: Set the lobby data so Steam knows which server to join
+                SteamMatchmaking.SetLobbyData(_currentLobbyId, "HostAddress", SteamUser.GetSteamID().ToString());
+            }
+        }
+
+        private void OnLobbyJoinRequested(GameLobbyJoinRequested_t callback)
+        {
+            // Extract the Lobby ID from the callback
+            string lobbyID = callback.m_steamIDLobby.ToString();
+
+            // Set the address and connect using FishySteamworks
+            if (_networkManager.TransportManager.Transport is FishySteamworks.FishySteamworks transport)
+            {
+                transport.SetClientAddress(lobbyID);
+                _networkManager.ClientManager.StartConnection();
+                Debug.Log($"Connecting to Lobby: {lobbyID}");
             }
         }
 
         private void CreateSteamLobby()
         {
             if (!SteamManager.Initialized) return;
-            // Visible to friends so they can use the "Join Game" button
             SteamMatchmaking.CreateLobby(ELobbyType.k_ELobbyTypeFriendsOnly, 32);
         }
 
@@ -72,35 +87,16 @@ namespace FishNet.Example
             {
                 SteamMatchmaking.LeaveLobby(_currentLobbyId);
                 _currentLobbyId = CSteamID.Nil;
-                Debug.Log("Left Steam Lobby.");
-            }
-        }
-
-        private void OnLobbyJoinRequested(GameLobbyJoinRequested_t callback)
-        {
-            string hostSteamID = callback.m_steamIDFriend.m_SteamID.ToString();
-            
-            // Note: Keep your refactor plan for the 'Invoke' and 'Reflection' bit 
-            // once you settle the Assembly Definition issue!
-            MonoBehaviour steamTransport = _networkManager.GetComponentInChildren<MonoBehaviour>();
-            if (steamTransport.GetType().Name == "FishySteamworks")
-            {
-                steamTransport.Invoke("SetClientAddress", 0f); 
-                _networkManager.ClientManager.StartConnection();
             }
         }
 
         #region Button Actions
 
-        /// <summary>
-        /// Starts or Stops a Dedicated Server. Now handles Steam Lobby visibility.
-        /// </summary>
         public void OnClick_DedicatedServer()
         {
             if (_serverState == LocalConnectionState.Stopped)
             {
                 _networkManager.ServerManager.StartConnection();
-                // Create a lobby so friends can see the "Dedicated" host in their overlay
                 CreateSteamLobby();
             }
             else
@@ -112,10 +108,23 @@ namespace FishNet.Example
 
         public void OnClick_JoinClient()
         {
-            if (_clientState == LocalConnectionState.Stopped)
-                _networkManager.ClientManager.StartConnection();
-            else
+            // Disconnect if already connected
+            if (_clientState != LocalConnectionState.Stopped)
+            {
                 _networkManager.ClientManager.StopConnection();
+                return;
+            }
+
+            if (SteamManager.Initialized)
+            {
+                SteamFriends.ActivateGameOverlay("friends");
+
+                Debug.Log("Opening Steam Friends list.");
+            }
+            else
+            {
+                Debug.LogError("Steam is not initialized!");
+            }
         }
 
         public void OnClick_Host()
@@ -159,25 +168,34 @@ namespace FishNet.Example
             };
         }
 
-        private void OnGUI()
-        {
-            GUILayout.BeginArea(new Rect(10, 10, 200, 300));
-            if (GUILayout.Button(_serverState == LocalConnectionState.Stopped ? "Start Dedicated Server" : "Stop Server"))
-                OnClick_DedicatedServer();
-            GUILayout.Space(10);
-            if (GUILayout.Button(_clientState == LocalConnectionState.Stopped ? "Join as Client" : "Disconnect Client"))
-                OnClick_JoinClient();
-            GUILayout.Space(10);
-            bool isHosting = (_serverState == LocalConnectionState.Started && _clientState == LocalConnectionState.Started);
-            if (GUILayout.Button(isHosting ? "Stop Hosting" : "Host (Server + Client)"))
-                OnClick_Host();
-            GUILayout.EndArea();
-        }
-
-        // Cleanup on application quit or object destruction to ensure the lobby dies
         private void OnDisable()
         {
             CloseSteamLobby();
         }
+        private void OnGUI()
+        {
+            GUILayout.BeginArea(new Rect(10, 10, 250, 400));
+
+            // Server Button
+            string serverText = (_serverState == LocalConnectionState.Stopped) ? "Start Dedicated Server" : "Stop Server";
+            if (GUILayout.Button(serverText, GUILayout.Height(30)))
+                OnClick_DedicatedServer();
+
+            GUILayout.Space(10);
+
+            string clientText = (_clientState == LocalConnectionState.Stopped) ? "Open Friends to Join" : "Disconnect Client";
+            if (GUILayout.Button(clientText, GUILayout.Height(30)))
+                OnClick_JoinClient();
+
+            GUILayout.Space(10);
+
+            bool isHosting = (_serverState == LocalConnectionState.Started && _clientState == LocalConnectionState.Started);
+            string hostText = isHosting ? "Stop Hosting" : "Host (Server + Client)";
+            if (GUILayout.Button(hostText, GUILayout.Height(30)))
+                OnClick_Host();
+
+            GUILayout.EndArea();
+        }
+
     }
 }
