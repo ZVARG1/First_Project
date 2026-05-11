@@ -9,10 +9,12 @@ namespace FishNet.Example
 {
     public class SteamNetworkManager : MonoBehaviour
     {
+        public static SteamNetworkManager Instance { get; private set; }
+
         [Header("Connection Indicators")]
         [SerializeField] private Image _serverIndicator;
         [SerializeField] private Image _clientIndicator;
-        
+
         [Header("Status Colors")]
         [SerializeField] private Color _stoppedColor = Color.red;
         [SerializeField] private Color _changingColor = Color.yellow;
@@ -20,26 +22,34 @@ namespace FishNet.Example
 
         private NetworkManager _networkManager;
         private CSteamID _currentLobbyId;
-        
+
         private LocalConnectionState _serverState = LocalConnectionState.Stopped;
         private LocalConnectionState _clientState = LocalConnectionState.Stopped;
 
-        // Steam Callbacks
         protected Callback<LobbyCreated_t> _lobbyCreated;
         protected Callback<GameLobbyJoinRequested_t> _lobbyJoinRequested;
 
         private void Awake()
         {
-            _networkManager = FindAnyObjectByType<NetworkManager>();
+            if (Instance == null)
+            {
+                Instance = this;
+                // Unparenting ensures DontDestroyOnLoad works if this was a child of a Bootstrapper
+                transform.SetParent(null);
+                DontDestroyOnLoad(gameObject);
+            }
+            else
+            {
+                Destroy(gameObject);
+                return;
+            }
+
+            _networkManager = FishNet.InstanceFinder.NetworkManager;
         }
 
         private void Start()
         {
-            if (_networkManager == null)
-            {
-                Debug.LogError("NetworkManager not found!");
-                return;
-            }
+            if (_networkManager == null) return;
 
             if (SteamManager.Initialized)
             {
@@ -47,11 +57,20 @@ namespace FishNet.Example
                 _lobbyCreated = Callback<LobbyCreated_t>.Create(OnLobbyCreated);
             }
 
-            // Subscribe to FishNet state changes
             _networkManager.ServerManager.OnServerConnectionState += ServerManager_OnServerConnectionState;
             _networkManager.ClientManager.OnClientConnectionState += ClientManager_OnClientConnectionState;
 
             UpdateIndicatorColors();
+
+            // Replaced internal LoadScene with SceneHandler call
+            if (SceneHandler.Instance != null)
+            {
+                SceneHandler.Instance.LoadSceneLocal("Scene_MainMenu");
+            }
+            else
+            {
+                Debug.LogWarning("SteamNetworkManager: SceneHandler.Instance is null in Start. Is it in the Boot scene?");
+            }
         }
 
         #region Steam Lobby Logic
@@ -68,19 +87,18 @@ namespace FishNet.Example
 
         private void OnLobbyJoinRequested(GameLobbyJoinRequested_t callback)
         {
-            string lobbyID = callback.m_steamIDLobby.ToString();
-
             if (_networkManager.TransportManager.Transport is FishySteamworks.FishySteamworks transport)
             {
-                transport.SetClientAddress(lobbyID);
+                transport.SetClientAddress(callback.m_steamIDLobby.ToString());
                 _networkManager.ClientManager.StartConnection();
+                // Note: SceneHandler is NOT needed here. 
+                // FishNet automatically pulls clients into the correct scene.
             }
         }
 
         private void CreateSteamLobby()
         {
             if (!SteamManager.Initialized) return;
-            // Matches your 32-player capacity requirement
             SteamMatchmaking.CreateLobby(ELobbyType.k_ELobbyTypeFriendsOnly, 32);
         }
 
@@ -103,6 +121,8 @@ namespace FishNet.Example
             {
                 _networkManager.ServerManager.StartConnection();
                 CreateSteamLobby();
+                // New: Using SceneHandler to move players to the map
+                SceneHandler.Instance.LoadGameSceneGlobal("Scene_Main");
             }
             else
             {
@@ -131,12 +151,16 @@ namespace FishNet.Example
                 _networkManager.ServerManager.StartConnection();
                 _networkManager.ClientManager.StartConnection();
                 CreateSteamLobby();
-            }
-            else
-            {
-                _networkManager.ServerManager.StopConnection(true);
-                _networkManager.ClientManager.StopConnection();
-                LeaveSteamLobby();
+
+                // MOVED: We wait for the connection to start before triggering the scene swap
+                if (SceneHandler.Instance != null)
+                {
+                    SceneHandler.Instance.LoadGameSceneGlobal("Scene_Main");
+                }
+                else
+                {
+                    Debug.LogError("SteamNetworkManager: Cannot load Game Scene because SceneHandler is missing!");
+                }
             }
         }
 
@@ -172,12 +196,11 @@ namespace FishNet.Example
                 _ => _changingColor
             };
         }
-
         #endregion
 
         private void OnDestroy()
         {
-            if (_networkManager != null)
+            if (_networkManager != null && _networkManager.ServerManager != null)
             {
                 _networkManager.ServerManager.OnServerConnectionState -= ServerManager_OnServerConnectionState;
                 _networkManager.ClientManager.OnClientConnectionState -= ClientManager_OnClientConnectionState;
