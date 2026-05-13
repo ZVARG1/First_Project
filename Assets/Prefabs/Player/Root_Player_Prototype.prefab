@@ -95,7 +95,7 @@ GameObject:
   - component: {fileID: 8092983096041489752}
   - component: {fileID: 4508209094939404958}
   m_Layer: 0
-  m_Name: Player_Prototype
+  m_Name: Root_Player_Prototype
   m_TagString: Untagged
   m_Icon: {fileID: 0}
   m_NavMeshLayer: 0
@@ -206,7 +206,7 @@ MonoBehaviour:
   _teleportThreshold: 1
   <PrefabId>k__BackingField: 0
   <SpawnableCollectionId>k__BackingField: 0
-  <AssetPathHash>k__BackingField: 2409013740578277012
+  <AssetPathHash>k__BackingField: 11199032712996528520
   SceneId: 0
   SerializedTransformProperties:
     Position: {x: -6.426, y: 0, z: -6.42241}
