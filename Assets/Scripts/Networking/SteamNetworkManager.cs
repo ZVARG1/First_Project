@@ -2,7 +2,6 @@
 using FishNet.Transporting;
 using Steamworks;
 using UnityEngine;
-using UnityEngine.UI;
 using FishySteamworks;
 
 namespace FishNet.Example
@@ -10,15 +9,6 @@ namespace FishNet.Example
     public class SteamNetworkManager : MonoBehaviour
     {
         public static SteamNetworkManager Instance { get; private set; }
-
-        [Header("Connection Indicators")]
-        [SerializeField] private Image _serverIndicator;
-        [SerializeField] private Image _clientIndicator;
-
-        [Header("Status Colors")]
-        [SerializeField] private Color _stoppedColor = Color.red;
-        [SerializeField] private Color _changingColor = Color.yellow;
-        [SerializeField] private Color _startedColor = Color.green;
 
         private NetworkManager _networkManager;
         private CSteamID _currentLobbyId;
@@ -34,7 +24,6 @@ namespace FishNet.Example
             if (Instance == null)
             {
                 Instance = this;
-                // Unparenting ensures DontDestroyOnLoad works if this was a child of a Bootstrapper
                 transform.SetParent(null);
                 DontDestroyOnLoad(gameObject);
             }
@@ -60,9 +49,6 @@ namespace FishNet.Example
             _networkManager.ServerManager.OnServerConnectionState += ServerManager_OnServerConnectionState;
             _networkManager.ClientManager.OnClientConnectionState += ClientManager_OnClientConnectionState;
 
-            UpdateIndicatorColors();
-
-            // Replaced internal LoadScene with SceneHandler call
             if (SceneHandler.Instance != null)
             {
                 SceneHandler.Instance.LoadSceneLocal("Scene_MainMenu");
@@ -91,8 +77,6 @@ namespace FishNet.Example
             {
                 transport.SetClientAddress(callback.m_steamIDLobby.ToString());
                 _networkManager.ClientManager.StartConnection();
-                // Note: SceneHandler is NOT needed here. 
-                // FishNet automatically pulls clients into the correct scene.
             }
         }
 
@@ -115,23 +99,7 @@ namespace FishNet.Example
 
         #region Public Button API
 
-        public void ToggleServer()
-        {
-            if (_serverState == LocalConnectionState.Stopped)
-            {
-                _networkManager.ServerManager.StartConnection();
-                CreateSteamLobby();
-                // New: Using SceneHandler to move players to the map
-                SceneHandler.Instance.LoadGameSceneGlobal("Scene_Main");
-            }
-            else
-            {
-                _networkManager.ServerManager.StopConnection(true);
-                LeaveSteamLobby();
-            }
-        }
-
-        public void ToggleClient()
+        public void ConnectAsClient() 
         {
             if (_clientState == LocalConnectionState.Stopped)
             {
@@ -144,23 +112,15 @@ namespace FishNet.Example
             }
         }
 
-        public void ToggleHost()
+        public void StartHostLobby()
         {
             if (_serverState == LocalConnectionState.Stopped && _clientState == LocalConnectionState.Stopped)
             {
                 _networkManager.ServerManager.StartConnection();
                 _networkManager.ClientManager.StartConnection();
                 CreateSteamLobby();
-
-                // MOVED: We wait for the connection to start before triggering the scene swap
-                if (SceneHandler.Instance != null)
-                {
-                    SceneHandler.Instance.LoadGameSceneGlobal("Scene_Main");
-                }
-                else
-                {
-                    Debug.LogError("SteamNetworkManager: Cannot load Game Scene because SceneHandler is missing!");
-                }
+            // REMOVED SceneHandler.Instance.LoadGameSceneGlobal here!
+            // Because we are staying in Scene_MainMenu to walk around the hangar.
             }
         }
 
@@ -171,31 +131,13 @@ namespace FishNet.Example
         private void ServerManager_OnServerConnectionState(ServerConnectionStateArgs obj)
         {
             _serverState = obj.ConnectionState;
-            UpdateColor(obj.ConnectionState, _serverIndicator);
         }
 
         private void ClientManager_OnClientConnectionState(ClientConnectionStateArgs obj)
         {
             _clientState = obj.ConnectionState;
-            UpdateColor(obj.ConnectionState, _clientIndicator);
         }
-
-        private void UpdateIndicatorColors()
-        {
-            UpdateColor(_serverState, _serverIndicator);
-            UpdateColor(_clientState, _clientIndicator);
-        }
-
-        private void UpdateColor(LocalConnectionState state, Image img)
-        {
-            if (img == null) return;
-            img.color = state switch
-            {
-                LocalConnectionState.Started => _startedColor,
-                LocalConnectionState.Stopped => _stoppedColor,
-                _ => _changingColor
-            };
-        }
+        
         #endregion
 
         private void OnDestroy()

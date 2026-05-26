@@ -211,11 +211,6 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: b1b0618ad2deeee439dfbd32ed1a81e8, type: 3}
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::FishNet.Example.SteamNetworkManager
-  _serverIndicator: {fileID: 0}
-  _clientIndicator: {fileID: 0}
-  _stoppedColor: {r: 1, g: 0, b: 0, a: 1}
-  _changingColor: {r: 1, g: 0.92156863, b: 0.015686275, a: 1}
-  _startedColor: {r: 0, g: 1, b: 0, a: 1}
 --- !u!1001 &3051343443831179705
 PrefabInstance:
   m_ObjectHideFlags: 0
