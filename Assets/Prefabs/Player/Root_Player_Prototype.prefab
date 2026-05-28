@@ -12,6 +12,7 @@ GameObject:
   - component: {fileID: -5811538755135130046}
   - component: {fileID: -4988932360018505555}
   - component: {fileID: -7015839876005251115}
+  - component: {fileID: 7928199529526454092}
   m_Layer: 0
   m_Name: Root_Player_Prototype
   m_TagString: Untagged
@@ -155,3 +156,22 @@ MonoBehaviour:
   _addedNetworkObject: {fileID: -5811538755135130046}
   _networkObjectCache: {fileID: -5811538755135130046}
   _allowTakeOwnership: 1
+--- !u!114 &7928199529526454092
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 5565762274382469434}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 2aa0edab6fd5a364c95c9361ef2ff979, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::FactionManifestManager
+  _componentIndexCache: 255
+  _addedNetworkObject: {fileID: -5811538755135130046}
+  _networkObjectCache: {fileID: 0}
+  _currentFaction: 0
+  _humanLobbyAvatarPrefab: {fileID: 2935772951293470600, guid: 79260ac33ef76b32184ae361fe5e7ec7, type: 3}
+  _alienLobbyAvatarPrefab: {fileID: 2935772951293470600, guid: 79260ac33ef76b32184ae361fe5e7ec7, type: 3}
+  _selectedCombatVehicle: {fileID: 0}

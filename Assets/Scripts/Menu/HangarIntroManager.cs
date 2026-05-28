@@ -1,11 +1,12 @@
 using UnityEngine;
+using UnityEngine.InputSystem; // NEW: Required for modern input parsing
 
 public class HangarIntroManager : MonoBehaviour
 {
     [Header("Dependencies")]
     [SerializeField] private MainMenuController menuController;
-    [SerializeField] private GameObject splashRoot; // The transparent UI overlay text object
-    [SerializeField] private GameObject playerController; // Your local movement script / GameObject
+    [SerializeField] private GameObject splashRoot; 
+    [SerializeField] private GameObject playerController; 
 
     private bool hasStarted = false;
 
@@ -13,15 +14,19 @@ public class HangarIntroManager : MonoBehaviour
     {
         hasStarted = false;
         
-        // Ensure baseline state at boot
         if (playerController != null) playerController.SetActive(false);
         if (splashRoot != null) splashRoot.SetActive(true);
     }
 
     void Update()
     {
-        // Detect input trigger safely
-        if (!hasStarted && Input.anyKeyDown)
+        // Fixed: Uses the modern Input System to check if any key/button on any device was pressed
+        if (!hasStarted && Keyboard.current != null && Keyboard.current.anyKey.wasPressedThisFrame)
+        {
+            InitializeHangarLobby();
+        }
+        // Fallback check for gamepads/mouse clicks if a keyboard isn't active
+        else if (!hasStarted && Pointer.current != null && Pointer.current.press.wasPressedThisFrame)
         {
             InitializeHangarLobby();
         }
@@ -30,9 +35,9 @@ public class HangarIntroManager : MonoBehaviour
     private void InitializeHangarLobby()
     {
         hasStarted = true;
-        Debug.Log("[HangarIntro] AnyKey detected! Starting transition sequence...");
+        Debug.Log("[HangarIntro] AnyKey detected via InputSystem! Starting transition sequence...");
 
-        // 1. Force the UI away FIRST so the player never gets stuck staring at a frozen screen
+        // 1. Force the UI away FIRST
         if (splashRoot != null)
         {
             splashRoot.SetActive(false);

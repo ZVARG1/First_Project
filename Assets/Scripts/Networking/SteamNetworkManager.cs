@@ -73,13 +73,30 @@ namespace FishNet.Example
 
         private void OnLobbyJoinRequested(GameLobbyJoinRequested_t callback)
         {
-            if (_networkManager.TransportManager.Transport is FishySteamworks.FishySteamworks transport)
+            // 1. Get the FishySteamworks transport reference safely using FishNet's helper
+            FishySteamworks.FishySteamworks transport = _networkManager.TransportManager.GetTransport<FishySteamworks.FishySteamworks>();
+
+            if (transport != null)
             {
-                transport.SetClientAddress(callback.m_steamIDLobby.ToString());
-                _networkManager.ClientManager.StartConnection();
+                // 2. CRUCIAL: Retrieve the Host's personal Steam ID string from the lobby metadata!
+                string hostAddress = SteamMatchmaking.GetLobbyData(callback.m_steamIDLobby, "HostAddress");
+
+                if (!string.IsNullOrEmpty(hostAddress))
+                {
+                    Debug.Log($"[Steam] Found HostAddress: {hostAddress}. Connecting via FishySteamworks...");
+
+                    // 3. Point the transport to the HOST, not the Lobby ID
+                    transport.SetClientAddress(hostAddress);
+
+                    // 4. Fire the connection handshake
+                    _networkManager.ClientManager.StartConnection();
+                }
+                else
+                {
+                    Debug.LogError("[Steam] Failed to join lobby: 'HostAddress' metadata was empty or not ready yet!");
+                }
             }
         }
-
         private void CreateSteamLobby()
         {
             if (!SteamManager.Initialized) return;
@@ -99,7 +116,7 @@ namespace FishNet.Example
 
         #region Public Button API
 
-        public void ConnectAsClient() 
+        public void ConnectAsClient()
         {
             if (_clientState == LocalConnectionState.Stopped)
             {
@@ -119,8 +136,8 @@ namespace FishNet.Example
                 _networkManager.ServerManager.StartConnection();
                 _networkManager.ClientManager.StartConnection();
                 CreateSteamLobby();
-            // REMOVED SceneHandler.Instance.LoadGameSceneGlobal here!
-            // Because we are staying in Scene_MainMenu to walk around the hangar.
+                // REMOVED SceneHandler.Instance.LoadGameSceneGlobal here!
+                // Because we are staying in Scene_MainMenu to walk around the hangar.
             }
         }
 
@@ -137,7 +154,7 @@ namespace FishNet.Example
         {
             _clientState = obj.ConnectionState;
         }
-        
+
         #endregion
 
         private void OnDestroy()
