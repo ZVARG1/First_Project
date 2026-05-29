@@ -5,7 +5,8 @@ using UnityEngine.SceneManagement;
 public class FactionManifestManager : NetworkBehaviour
 {
     [Header("Lobby Settings")]
-    [SerializeField] private FactionType _currentFaction = FactionType.Human;
+    [Tooltip("The default faction string used on initialization (e.g., 'Human' or 'Alien')")]
+    [SerializeField] private string _currentFaction = "Human";
     [SerializeField] private GameObject _humanLobbyAvatarPrefab;
     [SerializeField] private GameObject _alienLobbyAvatarPrefab;
 
@@ -23,20 +24,23 @@ public class FactionManifestManager : NetworkBehaviour
 
     private void DetermineActiveRepresentation()
     {
+        // Always clean up old remnants before instantiating a new body asset
         if (_currentActiveBody != null) Destroy(_currentActiveBody);
 
         Scene activeScene = UnityEngine.SceneManagement.SceneManager.GetActiveScene();
         string activeSceneName = activeScene.name;
         GameObject prefabToSpawn = null;
 
-        if (activeSceneName == "Scene_MainMenu")
+        // 1. Check for the Hangar / Social Hub Scene
+        if (string.Equals(activeSceneName, "Scene_MainMenu", System.StringComparison.OrdinalIgnoreCase))
         {
-            // Pick walking avatar based on faction
-            prefabToSpawn = (_currentFaction == FactionType.Human) ? _humanLobbyAvatarPrefab : _alienLobbyAvatarPrefab;
+            // Case-insensitive string matching prevents minor string-entry layout typos from breaking spawn logic
+            bool isHuman = string.Equals(_currentFaction, "Human", System.StringComparison.OrdinalIgnoreCase);
+            prefabToSpawn = isHuman ? _humanLobbyAvatarPrefab : _alienLobbyAvatarPrefab;
         }
-        else if (activeSceneName == "Scene_Main")
+        // 2. Check for the Active Map Dogfight Match Scene
+        else if (string.Equals(activeSceneName, "Scene_Main", System.StringComparison.OrdinalIgnoreCase))
         {
-            // Pick the specific craft prefab defined in the ScriptableObject asset card
             if (_selectedCombatVehicle != null && _selectedCombatVehicle.entityPrefab != null)
             {
                 prefabToSpawn = _selectedCombatVehicle.entityPrefab;
@@ -44,20 +48,31 @@ public class FactionManifestManager : NetworkBehaviour
             }
             else
             {
-                Debug.LogWarning("[SpawnSystem] No combat vehicle ScriptableObject selected for this player!");
+                Debug.LogWarning($"[{gameObject.name}] No valid combat vehicle ScriptableObject selected for this player sequence!");
             }
         }
 
+        // 3. Final Deployment Handshake
         if (prefabToSpawn != null)
         {
             _currentActiveBody = Instantiate(prefabToSpawn, transform.position, transform.rotation, transform);
         }
     }
 
-    // Public method your UI or Lobby Selection screen can call to change ships before the match starts
+    /// <summary>
+    /// Public API for your hangar terminal interface to swap vehicle profiles and update target assets dynamically.
+    /// </summary>
     public void SetSelectedVehicle(CombatEntityData newVehicleData)
     {
+        if (newVehicleData == null)
+        {
+            Debug.LogError($"[{gameObject.name}] SetSelectedVehicle called with a null data payload!");
+            return;
+        }
+
         _selectedCombatVehicle = newVehicleData;
-        _currentFaction = newVehicleData.faction; // Sync faction alignment automatically
+        _currentFaction = newVehicleData.faction; // Sync faction alignment string automatically from the ScriptableObject
+        
+        Debug.Log($"[Manifest] Updated selection payload to: {_selectedCombatVehicle.entityName} aligned with faction: {_currentFaction}");
     }
 }

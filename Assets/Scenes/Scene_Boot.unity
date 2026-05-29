@@ -231,6 +231,67 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: b1b0618ad2deeee439dfbd32ed1a81e8, type: 3}
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::FishNet.Example.SteamNetworkManager
+--- !u!1001 &1546648399
+PrefabInstance:
+  m_ObjectHideFlags: 0
+  serializedVersion: 2
+  m_Modification:
+    serializedVersion: 3
+    m_TransformParent: {fileID: 0}
+    m_Modifications:
+    - target: {fileID: 764782123937578404, guid: bb199028a65c328c5b0ba9d7697f231d, type: 3}
+      propertyPath: m_ClearFlags
+      value: 1
+      objectReference: {fileID: 0}
+    - target: {fileID: 6429370328960332606, guid: bb199028a65c328c5b0ba9d7697f231d, type: 3}
+      propertyPath: m_LocalPosition.x
+      value: 491.5
+      objectReference: {fileID: 0}
+    - target: {fileID: 6429370328960332606, guid: bb199028a65c328c5b0ba9d7697f231d, type: 3}
+      propertyPath: m_LocalPosition.y
+      value: 276.5
+      objectReference: {fileID: 0}
+    - target: {fileID: 6429370328960332606, guid: bb199028a65c328c5b0ba9d7697f231d, type: 3}
+      propertyPath: m_LocalPosition.z
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: 6429370328960332606, guid: bb199028a65c328c5b0ba9d7697f231d, type: 3}
+      propertyPath: m_LocalRotation.w
+      value: 1
+      objectReference: {fileID: 0}
+    - target: {fileID: 6429370328960332606, guid: bb199028a65c328c5b0ba9d7697f231d, type: 3}
+      propertyPath: m_LocalRotation.x
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: 6429370328960332606, guid: bb199028a65c328c5b0ba9d7697f231d, type: 3}
+      propertyPath: m_LocalRotation.y
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: 6429370328960332606, guid: bb199028a65c328c5b0ba9d7697f231d, type: 3}
+      propertyPath: m_LocalRotation.z
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: 6429370328960332606, guid: bb199028a65c328c5b0ba9d7697f231d, type: 3}
+      propertyPath: m_LocalEulerAnglesHint.x
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: 6429370328960332606, guid: bb199028a65c328c5b0ba9d7697f231d, type: 3}
+      propertyPath: m_LocalEulerAnglesHint.y
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: 6429370328960332606, guid: bb199028a65c328c5b0ba9d7697f231d, type: 3}
+      propertyPath: m_LocalEulerAnglesHint.z
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: 8633427537025851067, guid: bb199028a65c328c5b0ba9d7697f231d, type: 3}
+      propertyPath: m_Name
+      value: CameraRig
+      objectReference: {fileID: 0}
+    m_RemovedComponents: []
+    m_RemovedGameObjects: []
+    m_AddedGameObjects: []
+    m_AddedComponents: []
+  m_SourcePrefab: {fileID: 100100000, guid: bb199028a65c328c5b0ba9d7697f231d, type: 3}
 --- !u!1001 &3051343443831179705
 PrefabInstance:
   m_ObjectHideFlags: 0
@@ -292,5 +353,6 @@ PrefabInstance:
 SceneRoots:
   m_ObjectHideFlags: 0
   m_Roots:
+  - {fileID: 1546648399}
   - {fileID: 1036120334}
   - {fileID: 3051343443831179705}
