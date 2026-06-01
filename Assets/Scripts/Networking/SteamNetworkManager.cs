@@ -1,4 +1,4 @@
-﻿using FishNet.Managing;
+using FishNet.Managing;
 using FishNet.Transporting;
 using Steamworks;
 using UnityEngine;
@@ -16,8 +16,12 @@ namespace FishNet.Example
         private LocalConnectionState _serverState = LocalConnectionState.Stopped;
         private LocalConnectionState _clientState = LocalConnectionState.Stopped;
 
+        // State flag to distinguish intentional room migration from accidental disconnects
+        private bool _isTransitioning = false; 
+
         protected Callback<LobbyCreated_t> _lobbyCreated;
         protected Callback<GameLobbyJoinRequested_t> _lobbyJoinRequested;
+        protected Callback<LobbyDataUpdate_t> _lobbyDataUpdated;
 
         private void Awake()
         {
@@ -44,6 +48,7 @@ namespace FishNet.Example
             {
                 _lobbyJoinRequested = Callback<GameLobbyJoinRequested_t>.Create(OnLobbyJoinRequested);
                 _lobbyCreated = Callback<LobbyCreated_t>.Create(OnLobbyCreated);
+                _lobbyDataUpdated = Callback<LobbyDataUpdate_t>.Create(OnLobbyDataUpdated);
             }
 
             _networkManager.ServerManager.OnServerConnectionState += ServerManager_OnServerConnectionState;
@@ -73,30 +78,88 @@ namespace FishNet.Example
 
         private void OnLobbyJoinRequested(GameLobbyJoinRequested_t callback)
         {
-            // 1. Get the FishySteamworks transport reference safely using FishNet's helper
-            FishySteamworks.FishySteamworks transport = _networkManager.TransportManager.GetTransport<FishySteamworks.FishySteamworks>();
+            _currentLobbyId = callback.m_steamIDLobby;
+            _isTransitioning = true; 
 
-            if (transport != null)
+            TearDownLocalHub();
+
+            // Kick off the upgraded active polling routine
+            StartCoroutine(WaitAndConnectToFriend(callback.m_steamIDLobby));
+        }
+
+        private System.Collections.IEnumerator WaitAndConnectToFriend(CSteamID lobbyId)
+        {
+            Debug.Log("[SocialHub] Waiting for local network cleanup to complete...");
+
+            // 1. Let FishNet drop its current sockets safely
+            while (_serverState != LocalConnectionState.Stopped || _clientState != LocalConnectionState.Stopped)
             {
-                // 2. CRUCIAL: Retrieve the Host's personal Steam ID string from the lobby metadata!
-                string hostAddress = SteamMatchmaking.GetLobbyData(callback.m_steamIDLobby, "HostAddress");
+                yield return null;
+            }
 
-                if (!string.IsNullOrEmpty(hostAddress))
+            Debug.Log("[SocialHub] Local network clean. Requesting metadata refresh from Steam...");
+
+            // 2. Force Steam to download data fields for this specific foreign lobby
+            SteamMatchmaking.RequestLobbyData(lobbyId);
+
+            float timeoutTimer = 0f;
+            string hostAddress = string.Empty;
+
+            // 3. Actively check the metadata cache frame-by-frame for up to 5 seconds
+            while (string.IsNullOrEmpty(hostAddress) && timeoutTimer < 5.0f)
+            {
+                hostAddress = SteamMatchmaking.GetLobbyData(lobbyId, "HostAddress");
+                
+                if (string.IsNullOrEmpty(hostAddress))
                 {
-                    Debug.Log($"[Steam] Found HostAddress: {hostAddress}. Connecting via FishySteamworks...");
-
-                    // 3. Point the transport to the HOST, not the Lobby ID
-                    transport.SetClientAddress(hostAddress);
-
-                    // 4. Fire the connection handshake
-                    _networkManager.ClientManager.StartConnection();
-                }
-                else
-                {
-                    Debug.LogError("[Steam] Failed to join lobby: 'HostAddress' metadata was empty or not ready yet!");
+                    timeoutTimer += Time.deltaTime;
+                    yield return null; 
                 }
             }
+
+            // 4. Connect if resolved, otherwise fall back to a safe solo hub
+            if (!string.IsNullOrEmpty(hostAddress))
+            {
+                Debug.Log($"[SocialHub] Handshake parameter resolved: {hostAddress}. Connecting via FishySteamworks...");
+                FishySteamworks.FishySteamworks transport = _networkManager.TransportManager.GetTransport<FishySteamworks.FishySteamworks>();
+                if (transport != null)
+                {
+                    transport.SetClientAddress(hostAddress);
+                    _networkManager.ClientManager.StartConnection();
+                    _isTransitioning = false; 
+                }
+            }
+            else
+            {
+                Debug.LogError("[SocialHub] Steam failed to return HostAddress within timeout. Restoring solo hub...");
+                _isTransitioning = false;
+                StartHostLobby();
+            }
         }
+
+        private void OnLobbyDataUpdated(LobbyDataUpdate_t callback)
+        {
+            if (_currentLobbyId == CSteamID.Nil || (CSteamID)callback.m_ulSteamIDLobby != _currentLobbyId) return;
+
+            FishySteamworks.FishySteamworks transport = _networkManager.TransportManager.GetTransport<FishySteamworks.FishySteamworks>();
+            if (transport == null) return;
+
+            if (_clientState != LocalConnectionState.Stopped && _clientState != LocalConnectionState.Starting) return;
+            if (_serverState != LocalConnectionState.Stopped) return;
+
+            string hostAddress = SteamMatchmaking.GetLobbyData(_currentLobbyId, "HostAddress");
+
+            if (!string.IsNullOrEmpty(hostAddress))
+            {
+                if (_clientState == LocalConnectionState.Starting) return;
+
+                Debug.Log($"[SocialHub] Catch-up Sync! Received HostAddress: {hostAddress}. Resolving connection handshake...");
+                transport.SetClientAddress(hostAddress);
+                _networkManager.ClientManager.StartConnection();
+                _isTransitioning = false; 
+            }
+        }
+
         private void CreateSteamLobby()
         {
             if (!SteamManager.Initialized) return;
@@ -109,6 +172,17 @@ namespace FishNet.Example
             {
                 SteamMatchmaking.LeaveLobby(_currentLobbyId);
                 _currentLobbyId = CSteamID.Nil;
+            }
+        }
+
+        private void TearDownLocalHub()
+        {
+            Debug.Log("[SocialHub] Dismantling personal lobby bubble to join a friend...");
+            LeaveSteamLobby();
+
+            if (_networkManager.ServerManager.Started)
+            {
+                _networkManager.ServerManager.StopConnection(true);
             }
         }
 
@@ -136,8 +210,6 @@ namespace FishNet.Example
                 _networkManager.ServerManager.StartConnection();
                 _networkManager.ClientManager.StartConnection();
                 CreateSteamLobby();
-                // REMOVED SceneHandler.Instance.LoadGameSceneGlobal here!
-                // Because we are staying in Scene_MainMenu to walk around the hangar.
             }
         }
 
@@ -153,18 +225,49 @@ namespace FishNet.Example
         private void ClientManager_OnClientConnectionState(ClientConnectionStateArgs obj)
         {
             _clientState = obj.ConnectionState;
+
+            if (_clientState == LocalConnectionState.Stopped)
+            {
+                if (!_isTransitioning && gameObject.scene.isLoaded && Steamworks.SteamAPI.IsSteamRunning())
+                {
+                    Debug.Log("[SocialHub] Disconnected from session. Restoring solo sandbox room...");
+                    StartHostLobby();
+                }
+                else if (_isTransitioning)
+                {
+                    Debug.Log("[SocialHub] Client connection stopped locally for intentional room migration. Reboot sequence bypassed safely.");
+                }
+            }
         }
 
         #endregion
 
         private void OnDestroy()
         {
-            if (_networkManager != null && _networkManager.ServerManager != null)
+            if (_networkManager != null)
             {
-                _networkManager.ServerManager.OnServerConnectionState -= ServerManager_OnServerConnectionState;
-                _networkManager.ClientManager.OnClientConnectionState -= ClientManager_OnClientConnectionState;
+                if (_networkManager.ServerManager != null)
+                {
+                    _networkManager.ServerManager.OnServerConnectionState -= ServerManager_OnServerConnectionState;
+                }
+
+                if (_networkManager.ClientManager != null)
+                {
+                    _networkManager.ClientManager.OnClientConnectionState -= ClientManager_OnClientConnectionState;
+                }
             }
-            LeaveSteamLobby();
+
+            try
+            {
+                if (Steamworks.SteamAPI.IsSteamRunning())
+                {
+                    LeaveSteamLobby();
+                }
+            }
+            catch (System.InvalidOperationException)
+            {
+                Debug.Log("[NetworkManager] Caught Steamworks shutdown exception safely during scene exit.");
+            }
         }
     }
 }

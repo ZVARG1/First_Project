@@ -73,6 +73,9 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 73c1868797aacb50785d9c485bbdf15b, type: 3}
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::LobbyAvatarController
+  _componentIndexCache: 255
+  _addedNetworkObject: {fileID: 0}
+  _networkObjectCache: {fileID: 0}
   _moveSpeed: 6
   _gravity: -9.81
   _mouseSensitivity: 15
@@ -209,7 +212,7 @@ PrefabInstance:
       objectReference: {fileID: 0}
     - target: {fileID: 4451825639322728791, guid: e674f2828594b514db2e607c9d6529bb, type: 3}
       propertyPath: m_LocalPosition.z
-      value: 0
+      value: 0.312
       objectReference: {fileID: 0}
     - target: {fileID: 4451825639322728791, guid: e674f2828594b514db2e607c9d6529bb, type: 3}
       propertyPath: m_LocalRotation.w
