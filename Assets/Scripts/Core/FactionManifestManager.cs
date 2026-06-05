@@ -19,14 +19,16 @@ public class FactionManifestManager : NetworkBehaviour
     public override void OnStartClient()
     {
         base.OnStartClient();
-        DetermineActiveRepresentation();
+        
+        // Only the local player who owns this invisible manager should trigger the spawn request!
+        if (IsOwner)
+        {
+            DetermineActiveRepresentation();
+        }
     }
 
     private void DetermineActiveRepresentation()
     {
-        // Always clean up old remnants before instantiating a new body asset
-        if (_currentActiveBody != null) Destroy(_currentActiveBody);
-
         Scene activeScene = UnityEngine.SceneManagement.SceneManager.GetActiveScene();
         string activeSceneName = activeScene.name;
         GameObject prefabToSpawn = null;
@@ -34,7 +36,6 @@ public class FactionManifestManager : NetworkBehaviour
         // 1. Check for the Hangar / Social Hub Scene
         if (string.Equals(activeSceneName, "Scene_MainMenu", System.StringComparison.OrdinalIgnoreCase))
         {
-            // Case-insensitive string matching prevents minor string-entry layout typos from breaking spawn logic
             bool isHuman = string.Equals(_currentFaction, "Human", System.StringComparison.OrdinalIgnoreCase);
             prefabToSpawn = isHuman ? _humanLobbyAvatarPrefab : _alienLobbyAvatarPrefab;
         }
@@ -44,24 +45,39 @@ public class FactionManifestManager : NetworkBehaviour
             if (_selectedCombatVehicle != null && _selectedCombatVehicle.entityPrefab != null)
             {
                 prefabToSpawn = _selectedCombatVehicle.entityPrefab;
-                Debug.Log($"[SpawnSystem] Loading chosen vehicle: {_selectedCombatVehicle.entityName}");
+                Debug.Log($"[SpawnSystem] Preparing chosen vehicle payload: {_selectedCombatVehicle.entityName}");
             }
             else
             {
-                Debug.LogWarning($"[{gameObject.name}] No valid combat vehicle ScriptableObject selected for this player sequence!");
+                Debug.LogWarning($"[{gameObject.name}] No valid combat vehicle ScriptableObject selected!");
             }
         }
 
-        // 3. Final Deployment Handshake
+        // 3. Request Final Deployment from the Server
         if (prefabToSpawn != null)
         {
-            _currentActiveBody = Instantiate(prefabToSpawn, transform.position, transform.rotation, transform);
+            // Instead of local Instantiate(), we pass the object reference to our server request function
+            RequestSpawnBodyServer(prefabToSpawn, transform.position, transform.rotation);
         }
     }
 
-    /// <summary>
-    /// Public API for your hangar terminal interface to swap vehicle profiles and update target assets dynamically.
-    /// </summary>
+    [ServerRpc]
+    private void RequestSpawnBodyServer(GameObject prefab, Vector3 spawnPos, Quaternion spawnRot)
+    {
+        // A. If this connection already has an active body spawned on the server, clean it up first
+        if (_currentActiveBody != null)
+        {
+            ServerManager.Despawn(_currentActiveBody);
+        }
+
+        // B. Instantiate the object on the server inside world space (no structural parenting!)
+        _currentActiveBody = Instantiate(prefab, spawnPos, spawnRot);
+
+        // C. Officially spawn it across the entire Steam tunnel network, making it visible to everyone
+        // and assigning network ownership back to the client who requested it!
+        Spawn(_currentActiveBody, Owner);
+    }
+
     public void SetSelectedVehicle(CombatEntityData newVehicleData)
     {
         if (newVehicleData == null)
@@ -71,8 +87,17 @@ public class FactionManifestManager : NetworkBehaviour
         }
 
         _selectedCombatVehicle = newVehicleData;
-        _currentFaction = newVehicleData.faction; // Sync faction alignment string automatically from the ScriptableObject
+        _currentFaction = newVehicleData.faction; 
         
         Debug.Log($"[Manifest] Updated selection payload to: {_selectedCombatVehicle.entityName} aligned with faction: {_currentFaction}");
+    }
+
+    private void OnDestroy()
+    {
+        // Server cleanup safety guard: if the player disconnects, make sure their physical avatar body is destroyed too
+        if (IsServer && _currentActiveBody != null)
+        {
+            ServerManager.Despawn(_currentActiveBody);
+        }
     }
 }

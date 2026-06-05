@@ -133,8 +133,16 @@ PrefabInstance:
     m_TransformParent: {fileID: 0}
     m_Modifications:
     - target: {fileID: 146183101808547111, guid: 38466824f1e79e34e84fdc563dafa9a0, type: 3}
+      propertyPath: _playerPrefab
+      value: 
+      objectReference: {fileID: -5811538755135130046, guid: 214e482c1a7052ea6b1c8a3dc0847bed, type: 3}
+    - target: {fileID: 146183101808547111, guid: 38466824f1e79e34e84fdc563dafa9a0, type: 3}
       propertyPath: Spawns.Array.size
       value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: 146183101808547111, guid: 38466824f1e79e34e84fdc563dafa9a0, type: 3}
+      propertyPath: _addToDefaultScene
+      value: 1
       objectReference: {fileID: 0}
     - target: {fileID: 146183101808547111, guid: 38466824f1e79e34e84fdc563dafa9a0, type: 3}
       propertyPath: 'Spawns.Array.data[0]'
@@ -143,7 +151,7 @@ PrefabInstance:
     - target: {fileID: 146183101808547111, guid: 38466824f1e79e34e84fdc563dafa9a0, type: 3}
       propertyPath: 'Spawns.Array.data[1]'
       value: 
-      objectReference: {fileID: 1306852844238209640, guid: bc3efa9aa4355ad2792c30150a506151, type: 3}
+      objectReference: {fileID: 0}
     - target: {fileID: 146183101808547111, guid: 38466824f1e79e34e84fdc563dafa9a0, type: 3}
       propertyPath: 'Spawns.Array.data[2]'
       value: 
@@ -245,11 +253,11 @@ PrefabInstance:
       objectReference: {fileID: 0}
     - target: {fileID: 6429370328960332606, guid: bb199028a65c328c5b0ba9d7697f231d, type: 3}
       propertyPath: m_LocalPosition.x
-      value: 491.5
+      value: 490.5
       objectReference: {fileID: 0}
     - target: {fileID: 6429370328960332606, guid: bb199028a65c328c5b0ba9d7697f231d, type: 3}
       propertyPath: m_LocalPosition.y
-      value: 276.5
+      value: 276
       objectReference: {fileID: 0}
     - target: {fileID: 6429370328960332606, guid: bb199028a65c328c5b0ba9d7697f231d, type: 3}
       propertyPath: m_LocalPosition.z

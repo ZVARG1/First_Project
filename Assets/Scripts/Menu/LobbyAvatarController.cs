@@ -1,9 +1,8 @@
 using UnityEngine;
 using UnityEngine.InputSystem; 
-using FishNet.Object; 
 
 [RequireComponent(typeof(CharacterController))]
-public class LobbyAvatarController : NetworkBehaviour 
+public class LobbyAvatarController : MonoBehaviour 
 {
     [Header("Movement Settings")]
     [SerializeField] private float _moveSpeed = 6f;
@@ -24,53 +23,49 @@ public class LobbyAvatarController : NetworkBehaviour
     private CharacterController _controller;
     private Vector3 _velocity;
     private float _cameraPitch = 0f;
-    private bool _isLocalOwner = false;
 
     private InputAction _moveAction;
     private InputAction _lookAction;
+    
+    // Safety latch: Prevent Update loops from executing until the network tells us we are ready!
+    private bool _isInitialized = false;
 
-    public override void OnStartClient()
+    private void Awake()
     {
-        base.OnStartClient();
-
         _controller = GetComponent<CharacterController>();
-        if (_playerInput == null) _playerInput = GetComponent<PlayerInput>();
-
-        if (IsOwner)
-        {
-            _isLocalOwner = true;
-            
-            Cursor.lockState = CursorLockMode.Locked;
-            Cursor.visible = false;
-
-            // Wake up input ONLY for the actual owner
-            if (_playerInput != null) _playerInput.enabled = true; 
-
-            InitializeCleanInputMaps();
-        }
-        else
-        {
-            // Explicitly strip/disable remote proxy clones
-            if (_playerInput != null)
-            {
-                _playerInput.enabled = false;
-                _playerInput.actions = null; 
-            }
-
-            AudioListener remoteListener = GetComponentInChildren<AudioListener>();
-            if (remoteListener != null) remoteListener.enabled = false;
-
-            Camera remoteCamera = GetComponentInChildren<Camera>();
-            if (remoteCamera != null) remoteCamera.enabled = false;
-
-            enabled = false; 
-        }
+        _playerInput = GetComponent<PlayerInput>();
+        
+        // Force components off immediately on Awake to prevent early Unity lifecycle execution
+        this.enabled = false;
+        if (_controller != null) _controller.enabled = false;
+        if (_playerInput != null) _playerInput.enabled = false;
     }
 
-    private void InitializeCleanInputMaps()
+    // Explicitly called ONLY by NetworkPlayerSetup on the owning client machine
+    public void ActivateController()
+    {
+        _controller = GetComponent<CharacterController>();
+        _playerInput = GetComponent<PlayerInput>();
+
+        if (_controller != null) _controller.enabled = true;
+        if (_playerInput != null) _playerInput.enabled = true;
+
+        Cursor.lockState = CursorLockMode.Locked;
+        Cursor.visible = false;
+
+        InitializeLocalInputMaps();
+        
+        _isInitialized = true;
+        this.enabled = true; // Turn the Update loop on now that we are safe!
+        
+        Debug.Log("[Controller] Local avatar successfully initialized and unlatched!");
+    }
+
+    private void InitializeLocalInputMaps()
     {
         if (_playerInput == null || _playerInput.actions == null) return;
 
+        // Clone the input actions map reference to prevent multi-client hardware crossover
         _playerInput.actions = Instantiate(_playerInput.actions);
 
         foreach (var map in _playerInput.actions.actionMaps)
@@ -89,7 +84,8 @@ public class LobbyAvatarController : NetworkBehaviour
 
     void Update()
     {
-        if (!_isLocalOwner) return;
+        // Safety Guard: If the network handshake hasn't cleared us, drop out immediately
+        if (!_isInitialized) return;
 
         HandleRotation();
         HandleMovement();
@@ -134,16 +130,8 @@ public class LobbyAvatarController : NetworkBehaviour
 
     private void OnDisable()
     {
-        if (_isLocalOwner)
-        {
-            Cursor.lockState = CursorLockMode.None;
-            Cursor.visible = true;
-
-            if (_playerInput != null && _playerInput.actions != null)
-            {
-                var defaultMap = _playerInput.actions.FindActionMap(_lobbyActionMapName);
-                defaultMap?.Disable();
-            }
-        }
+        Cursor.lockState = CursorLockMode.None;
+        Cursor.visible = true;
+        _isInitialized = false;
     }
 }

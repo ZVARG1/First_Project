@@ -604,17 +604,24 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 87d89399e15c580879bf0b2ac23caf1f, type: 3}
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::DynamicSpawnPoint
---- !u!114 &1259088785 stripped
-MonoBehaviour:
-  m_CorrespondingSourceObject: {fileID: 4051131290624746700, guid: ca4524e92c9b07fac855514c6e3d94ef, type: 3}
+--- !u!1 &1021971254 stripped
+GameObject:
+  m_CorrespondingSourceObject: {fileID: 6252146634787704079, guid: ca4524e92c9b07fac855514c6e3d94ef, type: 3}
   m_PrefabInstance: {fileID: 6748294990529833392}
   m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 0}
+--- !u!114 &1259088787
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1021971254}
   m_Enabled: 1
   m_EditorHideFlags: 0
   m_Script: {fileID: 11500000, guid: 665ae37fca14892ca8ad304bba53a4f9, type: 3}
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::MainMenuController
+  menuRoot: {fileID: 0}
 --- !u!1 &1271359587 stripped
 GameObject:
   m_CorrespondingSourceObject: {fileID: 4631931214047754656, guid: dfc1ef34b46f05c5c88c913ce535e7e2, type: 3}
@@ -850,11 +857,11 @@ PrefabInstance:
     - target: {fileID: 1548879583722464695, guid: d343a5be26c385af69d9e20418e9f9cf, type: 3}
       propertyPath: menuController
       value: 
-      objectReference: {fileID: 1259088785}
+      objectReference: {fileID: 1259088787}
     - target: {fileID: 1548879583722464695, guid: d343a5be26c385af69d9e20418e9f9cf, type: 3}
       propertyPath: playerController
       value: 
-      objectReference: {fileID: 0}
+      objectReference: {fileID: 5565762274382469434, guid: 214e482c1a7052ea6b1c8a3dc0847bed, type: 3}
     - target: {fileID: 7668375978318791095, guid: d343a5be26c385af69d9e20418e9f9cf, type: 3}
       propertyPath: m_LocalPosition.x
       value: 570.6929
@@ -952,10 +959,14 @@ PrefabInstance:
       propertyPath: m_LocalEulerAnglesHint.z
       value: 0
       objectReference: {fileID: 0}
-    m_RemovedComponents: []
+    m_RemovedComponents:
+    - {fileID: 4051131290624746700, guid: ca4524e92c9b07fac855514c6e3d94ef, type: 3}
     m_RemovedGameObjects: []
     m_AddedGameObjects: []
-    m_AddedComponents: []
+    m_AddedComponents:
+    - targetCorrespondingSourceObject: {fileID: 6252146634787704079, guid: ca4524e92c9b07fac855514c6e3d94ef, type: 3}
+      insertIndex: -1
+      addedObject: {fileID: 1259088787}
   m_SourcePrefab: {fileID: 100100000, guid: ca4524e92c9b07fac855514c6e3d94ef, type: 3}
 --- !u!1660057539 &9223372036854775807
 SceneRoots:
