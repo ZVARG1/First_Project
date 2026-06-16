@@ -1,8 +1,8 @@
 using UnityEngine;
-using UnityEngine.InputSystem; 
+using UnityEngine.InputSystem;
 
 [RequireComponent(typeof(CharacterController))]
-public class LobbyAvatarController : MonoBehaviour 
+public class LobbyAvatarController : MonoBehaviour
 {
     [Header("Movement Settings")]
     [SerializeField] private float _moveSpeed = 6f;
@@ -14,11 +14,11 @@ public class LobbyAvatarController : MonoBehaviour
     [SerializeField] private float _maxPitch = 80f;
 
     [Header("Input Setup")]
-    [SerializeField] private PlayerInput _playerInput; 
-    [SerializeField] private string _lobbyActionMapName = "Player"; 
+    [SerializeField] private PlayerInput _playerInput;
+    [SerializeField] private string _lobbyActionMapName = "Player";
 
     [Header("References")]
-    [SerializeField] private Transform _cameraHolder; 
+    [SerializeField] private Transform _cameraHolder;
 
     private CharacterController _controller;
     private Vector3 _velocity;
@@ -26,7 +26,7 @@ public class LobbyAvatarController : MonoBehaviour
 
     private InputAction _moveAction;
     private InputAction _lookAction;
-    
+
     // Safety latch: Prevent Update loops from executing until the network tells us we are ready!
     private bool _isInitialized = false;
 
@@ -34,7 +34,7 @@ public class LobbyAvatarController : MonoBehaviour
     {
         _controller = GetComponent<CharacterController>();
         _playerInput = GetComponent<PlayerInput>();
-        
+
         // Force components off immediately on Awake to prevent early Unity lifecycle execution
         this.enabled = false;
         if (_controller != null) _controller.enabled = false;
@@ -54,10 +54,10 @@ public class LobbyAvatarController : MonoBehaviour
         Cursor.visible = false;
 
         InitializeLocalInputMaps();
-        
+
         _isInitialized = true;
         this.enabled = true; // Turn the Update loop on now that we are safe!
-        
+
         Debug.Log("[Controller] Local avatar successfully initialized and unlatched!");
     }
 
@@ -84,8 +84,10 @@ public class LobbyAvatarController : MonoBehaviour
 
     void Update()
     {
-        // Safety Guard: If the network handshake hasn't cleared us, drop out immediately
         if (!_isInitialized) return;
+
+        // If the UI manager has locked our inputs because a menu is open, freeze updates!
+        if (_inputLocked) return;
 
         HandleRotation();
         HandleMovement();
@@ -97,7 +99,7 @@ public class LobbyAvatarController : MonoBehaviour
 
         if (_controller.isGrounded && _velocity.y < 0)
         {
-            _velocity.y = -2f; 
+            _velocity.y = -2f;
         }
 
         Vector2 moveInput = _moveAction != null ? _moveAction.ReadValue<Vector2>() : Vector2.zero;
@@ -133,5 +135,40 @@ public class LobbyAvatarController : MonoBehaviour
         Cursor.lockState = CursorLockMode.None;
         Cursor.visible = true;
         _isInitialized = false;
+    }
+
+    private void OnApplicationFocus(bool hasFocus)
+    {
+        // If the game is back in focus and the network gatekeeper has initialized us...
+        if (hasFocus && _isInitialized)
+        {
+            // Re-force the cursor to hide and lock to the center of the screen
+            Cursor.lockState = CursorLockMode.Locked;
+            Cursor.visible = false;
+
+            Debug.Log("[Controller] Game regained focus. Cursor safely re-locked.");
+        }
+    }
+    // Add this variable near the top of your class
+    private bool _inputLocked = false;
+
+    public void SetInputLock(bool locked)
+    {
+        _inputLocked = locked;
+    }
+
+    public void TeleportTo(Vector3 destinationPosition)
+    {
+        // CRUCIAL: CharacterControllers fight manual position updates because of internal physics caching.
+        // We must disable it for one frame, snap the position, and turn it back on.
+        if (_controller != null)
+        {
+            _controller.enabled = false;
+            transform.position = destinationPosition;
+            _controller.enabled = true;
+
+            // Clear any falling velocity so they don't slam down at high speed after snapping
+            _velocity = Vector3.zero;
+        }
     }
 }

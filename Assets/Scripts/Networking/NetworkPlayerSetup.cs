@@ -21,6 +21,13 @@ public class NetworkPlayerSetup : NetworkBehaviour
             if (_localMovementController != null) 
             {
                 _localMovementController.ActivateController();
+                
+                // HANDSHAKE: Register this specific local instance with our UI system!
+                if (LobbyUIManager.Instance != null)
+                {
+                    LobbyUIManager.Instance.RegisterLocalPlayer(_localMovementController);
+                    Debug.Log("[NetworkSetup] Local player successfully registered with LobbyUIManager.");
+                }
             }
 
             Debug.Log("[NetworkSetup] Successfully identified owner and triggered local controller activation.");
