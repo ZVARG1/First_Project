@@ -8,6 +8,14 @@ public class InputWizardManager : MonoBehaviour
     [Header("UI Component Links")]
     [SerializeField] private TextMeshProUGUI _displayText;
     [SerializeField] private Image _backgroundImage;
+    
+    [Header("Master Panel Control (Fading)")]
+    [SerializeField] private CanvasGroup _navigationCanvasGroup; 
+
+    [Header("Universal Font States")]
+    [SerializeField] private TMP_FontAsset _baselineFont;
+    [SerializeField] private TMP_FontAsset _glitchFont;
+    [SerializeField] private TMP_FontAsset _decryptedFont;
 
     [Header("Visual Resources")]
     [SerializeField] private Sprite _humanHangarBackground;
@@ -22,18 +30,19 @@ public class InputWizardManager : MonoBehaviour
 
     [Header("Timing Configurations")]
     [SerializeField] private float _typeSpeed = 0.05f;
-    [SerializeField] private float _staticDuration = 0.8f;
+    [SerializeField] private float _buttonFadeDuration = 1.0f;
 
-    private int _currentPageIndex = 0; // Page 0 is our cinematic intro
+    private int _currentPageIndex = 0;
     private bool _isIntroRunning = false;
-
-    // Cinematic Text String Configurations
-    private string _phase1Text = "Welcome back, pilot...";
-    private string _phase2Text = "<font=\"AlienFont_Asset\"><color=#00FFCC>WARNING: NEURAL LINK COMPROMISED.</color></font>";
+    private string _coreIntroText = "Welcome back, pilot...";
 
     private void Start()
     {
-        // 0 = New Player, 1 = Completed
+        // ⚠️ EDITOR ONLY: Auto-reset cheat for rapid testing
+        #if UNITY_EDITOR
+        PlayerPrefs.DeleteKey("HasCompletedInputWizard");
+        #endif
+
         if (PlayerPrefs.GetInt("HasCompletedInputWizard", 0) == 1)
         {
             gameObject.SetActive(false);
@@ -47,15 +56,25 @@ public class InputWizardManager : MonoBehaviour
     {
         _currentPageIndex = 0;
         
-        // Hide all setup panels initially during the intro cinematic
         foreach (GameObject page in _interactivePages)
         {
             if (page != null) page.SetActive(false);
         }
 
-        // Lock navigation inputs until the sequence lands safely
-        _backButton.gameObject.SetActive(false);
-        _nextButton.gameObject.SetActive(false);
+        // Drop the master panel alpha to zero immediately
+        if (_navigationCanvasGroup != null)
+        {
+            _navigationCanvasGroup.alpha = 0f;
+            _navigationCanvasGroup.interactable = false;
+            _navigationCanvasGroup.blocksRaycasts = false;
+        }
+
+        // Ensure both GameObjects are physically active in the hierarchy so the layout works
+        if (_backButton != null) _backButton.gameObject.SetActive(true);
+        if (_nextButton != null) _nextButton.gameObject.SetActive(true); 
+
+        // Apply distinct visual visibility rule to the Back button components right away
+        SetBackButtonVisualState(false);
 
         StartCoroutine(RunIntroSequence());
     }
@@ -64,58 +83,73 @@ public class InputWizardManager : MonoBehaviour
     {
         _isIntroRunning = true;
         _displayText.text = "";
+        
+        // --- STEP 1: Baseline UI Layer ---
+        _displayText.font = _baselineFont;
         _backgroundImage.sprite = _humanHangarBackground;
         _backgroundImage.color = Color.white;
 
-        // --- PHASE 1: Human Typewriter ---
-        foreach (char letter in _phase1Text.ToCharArray())
+        foreach (char letter in _coreIntroText.ToCharArray())
         {
             _displayText.text += letter;
             yield return new WaitForSeconds(_typeSpeed);
         }
-        yield return new WaitForSeconds(1.0f);
 
-        // --- PHASE 2: Static Noise Distortion ---
-        float elapsedStaticTime = 0f;
-        _backgroundImage.sprite = _alienGlitchBackground;
+        float typedTime = _coreIntroText.Length * _typeSpeed;
+        float remainingHumanTime = Mathf.Max(0f, 3.0f - typedTime);
+        yield return new WaitForSeconds(remainingHumanTime);
 
-        while (elapsedStaticTime < _staticDuration)
+        // --- STEP 2: The Glitch Loop ---
+        SetInterfaceState(_glitchFont, _alienGlitchBackground, new Color(1f, 1f, 1f, 0.7f));
+        yield return new WaitForSeconds(0.25f);
+
+        SetInterfaceState(_baselineFont, _humanHangarBackground, Color.white);
+        yield return new WaitForSeconds(0.25f);
+
+        SetInterfaceState(_glitchFont, _alienGlitchBackground, new Color(1f, 1f, 1f, 0.8f));
+        yield return new WaitForSeconds(0.25f);
+
+        SetInterfaceState(_baselineFont, _humanHangarBackground, Color.white);
+        yield return new WaitForSeconds(0.25f);
+
+        // --- STEP 3: Decrypted State Override ---
+        SetInterfaceState(_decryptedFont, _humanHangarBackground, Color.white);
+
+        // --- STEP 4: Smooth Master Layout Fade-In ---
+        if (_navigationCanvasGroup != null)
         {
-            _backgroundImage.color = new Color(1f, 1f, 1f, Random.Range(0.4f, 0.9f));
-            _displayText.text = GenerateGlitchGarbage(Random.Range(15, 30));
-            yield return new WaitForSeconds(0.06f); 
-            elapsedStaticTime += 0.06f;
+            float counter = 0f;
+            while (counter < _buttonFadeDuration)
+            {
+                counter += Time.deltaTime;
+                _navigationCanvasGroup.alpha = Mathf.Lerp(0f, 1f, counter / _buttonFadeDuration);
+                yield return null;
+            }
+
+            _navigationCanvasGroup.alpha = 1f;
+            _navigationCanvasGroup.interactable = true;
+            _navigationCanvasGroup.blocksRaycasts = true;
         }
 
-        _backgroundImage.color = Color.white;
-        _displayText.text = "";
+        // Force explicit evaluation of page rules now that panels are visible
+        UpdatePageVisibility();
 
-        // --- PHASE 3: Alien Language Overlay ---
-        _displayText.text = _phase2Text;
-        _displayText.maxVisibleCharacters = 0;
-
-        // Force TMPro to update mesh info so character count reads accurately with styling tags
-        _displayText.ForceMeshUpdate(); 
-        int totalVisibleCharacters = _displayText.textInfo.characterCount;
-
-        for (int i = 0; i <= totalVisibleCharacters; i++)
-        {
-            _displayText.maxVisibleCharacters = i;
-            yield return new WaitForSeconds(_typeSpeed * 0.5f);
-        }
-
-        // --- INTRO COMPLETE: Unlock Wizard Navigation ---
         _isIntroRunning = false;
-        _nextButton.gameObject.SetActive(true);
-        TMPro.TextMeshProUGUI nextText = _nextButton.GetComponentInChildren<TMPro.TextMeshProUGUI>();
-        if (nextText != null) nextText.text = "PROCEED >";
+    }
+
+    private void SetInterfaceState(TMP_FontAsset activeFont, Sprite background, Color bgColor)
+    {
+        if (activeFont != null) _displayText.font = activeFont;
+        if (background != null) _backgroundImage.sprite = background;
+        _backgroundImage.color = bgColor;
+        _displayText.UpdateFontAsset();
     }
 
     public void OnClickNext()
     {
         if (_isIntroRunning) return;
 
-        if (_currentPageIndex < _interactivePages.Length) // Note: length matches remaining steps
+        if (_currentPageIndex < _interactivePages.Length)
         {
             _currentPageIndex++;
             UpdatePageVisibility();
@@ -136,10 +170,8 @@ public class InputWizardManager : MonoBehaviour
 
     private void UpdatePageVisibility()
     {
-        // Hide the main narrative text once the user progresses into the configurations
         _displayText.gameObject.SetActive(_currentPageIndex == 0);
 
-        // Turn pages on or off based on our index tracking (offset by 1 because page 0 was the intro)
         for (int i = 0; i < _interactivePages.Length; i++)
         {
             if (_interactivePages[i] != null)
@@ -148,25 +180,34 @@ public class InputWizardManager : MonoBehaviour
             }
         }
 
-        // Manage button display configurations
-        _backButton.gameObject.SetActive(_currentPageIndex > 1);
-        
-        TMPro.TextMeshProUGUI nextText = _nextButton.GetComponentInChildren<TMPro.TextMeshProUGUI>();
-        if (nextText != null)
-        {
-            nextText.text = (_currentPageIndex == _interactivePages.Length) ? "INITIALIZE LINK" : "NEXT >";
-        }
+        // Control the back button using specific functional rendering toggles instead of layout breakers
+        bool shouldShowBack = _currentPageIndex > 1;
+        SetBackButtonVisualState(shouldShowBack);
     }
 
-    private string GenerateGlitchGarbage(int length)
+    private void SetBackButtonVisualState(bool isVisible)
     {
-        char[] chars = "!@#$%^&*()_+==}{[]|?/<>:;".ToCharArray();
-        string garbage = "";
-        for (int i = 0; i < length; i++)
+        if (_backButton == null) return;
+
+        // Toggle interactivity
+        _backButton.enabled = isVisible;
+
+        // Toggle graphic rendering components so the layout placeholder remains perfectly stable
+        if (_backButton.TryGetComponent<Image>(out var btnImage))
         {
-            garbage += chars[Random.Range(0, chars.Length)];
+            btnImage.enabled = isVisible;
         }
-        return garbage;
+
+        // Toggle any text inside the button container completely off/on
+        if (_backButton.TryGetComponent<CanvasRenderer>(out var renderer))
+        {
+            renderer.cull = !isVisible;
+        }
+        
+        foreach (var textComponent in _backButton.GetComponentsInChildren<TextMeshProUGUI>())
+        {
+            textComponent.enabled = isVisible;
+        }
     }
 
     private void FinishWizard()
