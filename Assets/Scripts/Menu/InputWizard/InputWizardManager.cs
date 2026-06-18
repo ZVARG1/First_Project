@@ -2,15 +2,16 @@ using System.Collections;
 using UnityEngine;
 using UnityEngine.UI;
 using TMPro;
+using UnityEngine.InputSystem;
 
 public class InputWizardManager : MonoBehaviour
 {
     [Header("UI Component Links")]
     [SerializeField] private TextMeshProUGUI _displayText;
     [SerializeField] private Image _backgroundImage;
-    
+
     [Header("Master Panel Control (Fading)")]
-    [SerializeField] private CanvasGroup _navigationCanvasGroup; 
+    [SerializeField] private CanvasGroup _navigationCanvasGroup;
 
     [Header("Universal Font States")]
     [SerializeField] private TMP_FontAsset _baselineFont;
@@ -32,30 +33,39 @@ public class InputWizardManager : MonoBehaviour
     [SerializeField] private float _typeSpeed = 0.05f;
     [SerializeField] private float _buttonFadeDuration = 1.0f;
 
+    [SerializeField] private InputActionAsset playerInputActions;
+
+    // 👉 THE FIX: Added public property so InputWizardTransitioner can track the state
+    public bool IsWizardComplete { get; private set; } = false;
+
     private int _currentPageIndex = 0;
     private bool _isIntroRunning = false;
     private string _coreIntroText = "Welcome back, pilot...";
 
     private void Start()
     {
-        // ⚠️ EDITOR ONLY: Auto-reset cheat for rapid testing
-        #if UNITY_EDITOR
-        PlayerPrefs.DeleteKey("HasCompletedInputWizard");
-        #endif
-
-        if (PlayerPrefs.GetInt("HasCompletedInputWizard", 0) == 1)
-        {
-            gameObject.SetActive(false);
-            return;
-        }
-
+        // 🛠️ CLEANUP: Removed PlayerPrefs checks and rapid reset logic here.
+        // InputWizardTransitioner is completely managing activation/deactivation now.
         InitializeWizard();
+    }
+    private void Awake()
+    {
+        // 👉 ADD THESE LINES: Restores their personal setup immediately on boot
+        if (playerInputActions != null)
+        {
+            InputSaveManager.LoadBindings(playerInputActions);
+        }
+        else
+        {
+            Debug.LogError("[Wizard] Player Input Actions asset is missing from the Inspector!");
+        }
     }
 
     private void InitializeWizard()
     {
         _currentPageIndex = 0;
-        
+        IsWizardComplete = false; // Reset state on bootup
+
         foreach (GameObject page in _interactivePages)
         {
             if (page != null) page.SetActive(false);
@@ -71,7 +81,7 @@ public class InputWizardManager : MonoBehaviour
 
         // Ensure both GameObjects are physically active in the hierarchy so the layout works
         if (_backButton != null) _backButton.gameObject.SetActive(true);
-        if (_nextButton != null) _nextButton.gameObject.SetActive(true); 
+        if (_nextButton != null) _nextButton.gameObject.SetActive(true);
 
         // Apply distinct visual visibility rule to the Back button components right away
         SetBackButtonVisualState(false);
@@ -83,7 +93,7 @@ public class InputWizardManager : MonoBehaviour
     {
         _isIntroRunning = true;
         _displayText.text = "";
-        
+
         // --- STEP 1: Baseline UI Layer ---
         _displayText.font = _baselineFont;
         _backgroundImage.sprite = _humanHangarBackground;
@@ -203,7 +213,7 @@ public class InputWizardManager : MonoBehaviour
         {
             renderer.cull = !isVisible;
         }
-        
+
         foreach (var textComponent in _backButton.GetComponentsInChildren<TextMeshProUGUI>())
         {
             textComponent.enabled = isVisible;
@@ -213,8 +223,14 @@ public class InputWizardManager : MonoBehaviour
     private void FinishWizard()
     {
         Debug.Log("[Wizard] Input settings locked down. Initializing core lobby link.");
+
+        // 👉 ADD THIS LINE: Save the modified bindings right before marking complete!
+        InputSaveManager.SaveBindings(playerInputActions);
+
         PlayerPrefs.SetInt("HasCompletedInputWizard", 1);
         PlayerPrefs.Save();
+
+        IsWizardComplete = true;
         gameObject.SetActive(false);
     }
 }
