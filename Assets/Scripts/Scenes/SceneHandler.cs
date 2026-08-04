@@ -34,7 +34,7 @@ public class SceneHandler : MonoBehaviour
 
             sld.PreferredActiveScene = new PreferredScene(new SceneLookupData(mapName));
 
-            SceneUnloadData sud = new SceneUnloadData(new SceneLookupData("Scene_MainMenu"));
+            SceneUnloadData sud = new SceneUnloadData(new SceneLookupData("Scene_HangarLobby"));
 
             InstanceFinder.SceneManager.LoadGlobalScenes(sld);
             InstanceFinder.SceneManager.UnloadGlobalScenes(sud);

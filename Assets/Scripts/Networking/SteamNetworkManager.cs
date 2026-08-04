@@ -56,7 +56,7 @@ namespace FishNet.Example
 
             if (SceneHandler.Instance != null)
             {
-                SceneHandler.Instance.LoadSceneLocal("Scene_MainMenu");
+                SceneHandler.Instance.LoadSceneLocal("Scene_HangarLobby");
             }
             else
             {

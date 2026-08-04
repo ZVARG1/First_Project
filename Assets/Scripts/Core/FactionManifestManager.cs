@@ -34,13 +34,13 @@ public class FactionManifestManager : NetworkBehaviour
         GameObject prefabToSpawn = null;
 
         // 1. Check for the Hangar / Social Hub Scene
-        if (string.Equals(activeSceneName, "Scene_MainMenu", System.StringComparison.OrdinalIgnoreCase))
+        if (string.Equals(activeSceneName, "Scene_HangarLobby", System.StringComparison.OrdinalIgnoreCase))
         {
             bool isHuman = string.Equals(_currentFaction, "Human", System.StringComparison.OrdinalIgnoreCase);
             prefabToSpawn = isHuman ? _humanLobbyAvatarPrefab : _alienLobbyAvatarPrefab;
         }
         // 2. Check for the Active Map Dogfight Match Scene
-        else if (string.Equals(activeSceneName, "Scene_Main", System.StringComparison.OrdinalIgnoreCase))
+        else if (string.Equals(activeSceneName, "Scene_CombatLobby", System.StringComparison.OrdinalIgnoreCase))
         {
             if (_selectedCombatVehicle != null && _selectedCombatVehicle.entityPrefab != null)
             {
