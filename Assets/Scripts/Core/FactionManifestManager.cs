@@ -1,103 +1,184 @@
-using UnityEngine;
 using FishNet.Object;
+using UnityEngine;
 using UnityEngine.SceneManagement;
 
+/// <summary>
+/// Responsible for spawning and replacing the player's active in-game
+/// representation (lobby avatar or combat aircraft) based on the current scene.
+/// </summary>
 public class FactionManifestManager : NetworkBehaviour
 {
+    #region Inspector
+
+    private const string LogPrefix = "[Representation]";
+
     [Header("Lobby Settings")]
-    [Tooltip("The default faction string used on initialization (e.g., 'Human' or 'Alien')")]
-    [SerializeField] private string _currentFaction = "Human";
+    [Tooltip("Current player faction.")]
+    [SerializeField] private string _currentFaction = Factions.Human;
+
     [SerializeField] private GameObject _humanLobbyAvatarPrefab;
     [SerializeField] private GameObject _alienLobbyAvatarPrefab;
 
-    [Header("Active Combat Selection")]
-    [Tooltip("This will be set dynamically via your UI ship-selection screen later")]
+    [Header("Combat Selection")]
+    [Tooltip("Selected combat vehicle.")]
     [SerializeField] private CombatEntityData _selectedCombatVehicle;
 
-    private GameObject _currentActiveBody;
+    #endregion
+
+    #region Runtime
+
+    /// <summary>
+    /// Currently spawned representation owned by this player.
+    /// </summary>
+    private GameObject _currentRepresentationInstance;
+
+    #endregion
+
+    #region Unity Callbacks
 
     public override void OnStartClient()
     {
         base.OnStartClient();
-        
-        // Only the local player who owns this invisible manager should trigger the spawn request!
-        if (IsOwner)
+
+        if (!IsOwner)
         {
-            DetermineActiveRepresentation();
-        }
-    }
-
-    private void DetermineActiveRepresentation()
-    {
-        Scene activeScene = UnityEngine.SceneManagement.SceneManager.GetActiveScene();
-        string activeSceneName = activeScene.name;
-        GameObject prefabToSpawn = null;
-
-        // 1. Check for the Hangar / Social Hub Scene
-        if (string.Equals(activeSceneName, "Scene_HangarLobby", System.StringComparison.OrdinalIgnoreCase))
-        {
-            bool isHuman = string.Equals(_currentFaction, "Human", System.StringComparison.OrdinalIgnoreCase);
-            prefabToSpawn = isHuman ? _humanLobbyAvatarPrefab : _alienLobbyAvatarPrefab;
-        }
-        // 2. Check for the Active Map Dogfight Match Scene
-        else if (string.Equals(activeSceneName, "Scene_CombatLobby", System.StringComparison.OrdinalIgnoreCase))
-        {
-            if (_selectedCombatVehicle != null && _selectedCombatVehicle.entityPrefab != null)
-            {
-                prefabToSpawn = _selectedCombatVehicle.entityPrefab;
-                Debug.Log($"[SpawnSystem] Preparing chosen vehicle payload: {_selectedCombatVehicle.entityName}");
-            }
-            else
-            {
-                Debug.LogWarning($"[{gameObject.name}] No valid combat vehicle ScriptableObject selected!");
-            }
-        }
-
-        // 3. Request Final Deployment from the Server
-        if (prefabToSpawn != null)
-        {
-            // Instead of local Instantiate(), we pass the object reference to our server request function
-            RequestSpawnBodyServer(prefabToSpawn, transform.position, transform.rotation);
-        }
-    }
-
-    [ServerRpc]
-    private void RequestSpawnBodyServer(GameObject prefab, Vector3 spawnPos, Quaternion spawnRot)
-    {
-        // A. If this connection already has an active body spawned on the server, clean it up first
-        if (_currentActiveBody != null)
-        {
-            ServerManager.Despawn(_currentActiveBody);
-        }
-
-        // B. Instantiate the object on the server inside world space (no structural parenting!)
-        _currentActiveBody = Instantiate(prefab, spawnPos, spawnRot);
-
-        // C. Officially spawn it across the entire Steam tunnel network, making it visible to everyone
-        // and assigning network ownership back to the client who requested it!
-        Spawn(_currentActiveBody, Owner);
-    }
-
-    public void SetSelectedVehicle(CombatEntityData newVehicleData)
-    {
-        if (newVehicleData == null)
-        {
-            Debug.LogError($"[{gameObject.name}] SetSelectedVehicle called with a null data payload!");
             return;
         }
 
-        _selectedCombatVehicle = newVehicleData;
-        _currentFaction = newVehicleData.faction; 
-        
-        Debug.Log($"[Manifest] Updated selection payload to: {_selectedCombatVehicle.entityName} aligned with faction: {_currentFaction}");
+        SpawnCurrentRepresentation();
     }
 
     private void OnDestroy()
     {
-        // Server cleanup safety guard: if the player disconnects, make sure their physical avatar body is destroyed too
-        if (IsServer && _currentActiveBody != null)
+        if (!IsServerInitialized || _currentRepresentationInstance == null)
         {
-            ServerManager.Despawn(_currentActiveBody);
+            return;
         }
+
+        ServerManager.Despawn(_currentRepresentationInstance);
     }
+
+    #endregion
+
+    #region Representation Selection
+
+    /// <summary>
+    /// Determines which representation should be active and requests the server
+    /// to spawn it.
+    /// </summary>
+    private void SpawnCurrentRepresentation()
+    {
+        GameObject prefab = GetRepresentationPrefab();
+
+        if (prefab == null)
+        {
+            return;
+        }
+
+        RequestSpawnBodyServer(prefab, transform.position, transform.rotation);
+    }
+
+    /// <summary>
+    /// Returns the correct representation prefab for the active scene.
+    /// </summary>
+    private GameObject GetRepresentationPrefab()
+    {
+        Scene activeScene = UnityEngine.SceneManagement.SceneManager.GetActiveScene();
+        string sceneName = activeScene.name;
+
+        if (string.Equals(sceneName, SceneNames.HangarLobby, System.StringComparison.OrdinalIgnoreCase))
+        {
+            return GetLobbyRepresentation();
+        }
+
+        if (string.Equals(sceneName, SceneNames.CombatLobby, System.StringComparison.OrdinalIgnoreCase))
+        {
+            return GetCombatRepresentation();
+        }
+
+        Debug.LogWarning($"{LogPrefix} No representation defined for scene '{sceneName}'.");
+
+        return null;
+    }
+
+    /// <summary>
+    /// Returns the appropriate lobby avatar based on the current faction.
+    /// </summary>
+    private GameObject GetLobbyRepresentation()
+    {
+        bool isHuman = string.Equals(
+            _currentFaction,
+            Factions.Human,
+            System.StringComparison.OrdinalIgnoreCase);
+
+        return isHuman
+            ? _humanLobbyAvatarPrefab
+            : _alienLobbyAvatarPrefab;
+    }
+
+    /// <summary>
+    /// Returns the currently selected combat vehicle prefab.
+    /// </summary>
+    private GameObject GetCombatRepresentation()
+    {
+        if (_selectedCombatVehicle == null)
+        {
+            Debug.LogWarning($"{LogPrefix} No combat vehicle selected.");
+            return null;
+        }
+
+        if (_selectedCombatVehicle.entityPrefab == null)
+        {
+            Debug.LogWarning($"{LogPrefix} '{_selectedCombatVehicle.entityName}' has no prefab assigned.");
+            return null;
+        }
+
+        Debug.Log($"{LogPrefix} Preparing '{_selectedCombatVehicle.entityName}'.");
+
+        return _selectedCombatVehicle.entityPrefab;
+    }
+
+    #endregion
+
+    #region Networking
+
+    /// <summary>
+    /// Replaces the player's current representation on the server.
+    /// </summary>
+    [ServerRpc]
+    private void RequestSpawnBodyServer(GameObject prefab, Vector3 spawnPosition, Quaternion spawnRotation)
+    {
+        if (_currentRepresentationInstance != null)
+        {
+            ServerManager.Despawn(_currentRepresentationInstance);
+        }
+
+        _currentRepresentationInstance = Instantiate(prefab, spawnPosition, spawnRotation);
+
+        Spawn(_currentRepresentationInstance, Owner);
+    }
+
+    #endregion
+
+    #region Public API
+
+    /// <summary>
+    /// Updates the player's selected combat vehicle and synchronizes the
+    /// player's faction with the vehicle.
+    /// </summary>
+    public void SetSelectedVehicle(CombatEntityData newVehicleData)
+    {
+        if (newVehicleData == null)
+        {
+            Debug.LogError($"{LogPrefix} Attempted to assign a null CombatEntityData.");
+            return;
+        }
+
+        _selectedCombatVehicle = newVehicleData;
+        _currentFaction = newVehicleData.faction;
+
+        Debug.Log($"{LogPrefix} Selected vehicle: {_selectedCombatVehicle.entityName} | Faction: {_currentFaction}");
+    }
+
+    #endregion
 }

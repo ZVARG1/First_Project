@@ -1,43 +1,82 @@
-using UnityEngine;
-using UnityEngine.SceneManagement; // For local loads
 using FishNet;
-using FishNet.Managing.Scened; // For global loads
+using FishNet.Managing.Scened;
+using UnityEngine;
 
+// Alias to avoid conflicts with FishNet's SceneManager.
+using UnitySceneManager = UnityEngine.SceneManagement.SceneManager;
+
+/// <summary>
+/// Handles scene transitions for both local (Unity) and
+/// networked (FishNet) scene loading.
+/// </summary>
 public class SceneHandler : MonoBehaviour
 {
+    #region Singleton
+
     public static SceneHandler Instance { get; private set; }
+
+    #endregion
+
+    #region Unity Callbacks
 
     private void Awake()
     {
-        if (Instance == null) 
-        { 
-            Instance = this; 
-            transform.SetParent(null);
-            DontDestroyOnLoad(gameObject);
+        if (Instance != null)
+        {
+            Destroy(gameObject);
+            return;
         }
-        else { Destroy(gameObject); }
+
+        Instance = this;
+
+        transform.SetParent(null);
+        DontDestroyOnLoad(gameObject);
     }
 
-    // Standard Unity Load (Local)
+    #endregion
+
+    #region Local Scene Loading
+
+    /// <summary>
+    /// Loads a scene locally using Unity's SceneManager.
+    /// This transition is not synchronized over the network.
+    /// </summary>
+    /// <param name="sceneName">Scene to load.</param>
     public void LoadSceneLocal(string sceneName)
     {
-        // Explicitly using the Unity namespace to avoid ambiguity
-        UnityEngine.SceneManagement.SceneManager.LoadScene(sceneName);
+        UnitySceneManager.LoadScene(sceneName);
     }
 
-    // FishNet Global Load (Networked)
-    public void LoadGameSceneGlobal(string mapName)
+    #endregion
+
+    #region Network Scene Loading
+
+    /// <summary>
+    /// Loads a scene globally for every connected player using FishNet.
+    /// Intended for transitions into multiplayer gameplay.
+    /// </summary>
+    /// <param name="sceneName">Scene to load.</param>
+    public void LoadGameSceneGlobal(string sceneName)
     {
-        if (InstanceFinder.ServerManager.Started)
+        if (!InstanceFinder.ServerManager.Started)
         {
-            SceneLoadData sld = new SceneLoadData(new SceneLookupData(mapName));
-
-            sld.PreferredActiveScene = new PreferredScene(new SceneLookupData(mapName));
-
-            SceneUnloadData sud = new SceneUnloadData(new SceneLookupData("Scene_HangarLobby"));
-
-            InstanceFinder.SceneManager.LoadGlobalScenes(sld);
-            InstanceFinder.SceneManager.UnloadGlobalScenes(sud);
+            Debug.LogWarning("[SceneHandler] Cannot load a global scene because the server is not running.");
+            return;
         }
+
+        SceneLoadData loadData = new SceneLoadData(new SceneLookupData(sceneName))
+        {
+            PreferredActiveScene = new PreferredScene(new SceneLookupData(sceneName))
+        };
+
+        SceneUnloadData unloadData = new SceneUnloadData(
+            new SceneLookupData(SceneNames.HangarLobby));
+
+        InstanceFinder.SceneManager.LoadGlobalScenes(loadData);
+        InstanceFinder.SceneManager.UnloadGlobalScenes(unloadData);
+
+        Debug.Log($"[SceneHandler] Loading global scene '{sceneName}'.");
     }
+
+    #endregion
 }

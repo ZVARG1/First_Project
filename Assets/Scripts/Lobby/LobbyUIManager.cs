@@ -1,133 +1,131 @@
 using UnityEngine;
-using UnityEngine.UI;
-using UnityEngine.InputSystem; // Added for the New Input System package
+using UnityEngine.InputSystem;
 
+/// <summary>
+/// Manages the lobby user interface, including the ESC menu,
+/// cursor state, and player input locking.
+/// </summary>
 public class LobbyUIManager : MonoBehaviour
 {
+    #region Singleton
+
     public static LobbyUIManager Instance { get; private set; }
+
+    #endregion
+
+    #region Inspector
 
     [Header("UI Panels")]
     [SerializeField] private GameObject _escMenuPanel;
 
-    [Header("Explicit Teleport Waypoints")]
-    [SerializeField] private Transform _missionControlWaypoint; 
-    [SerializeField] private Transform _settingsAreaWaypoint;    
-    [SerializeField] private Transform _traitorCornerWaypoint;   
+    #endregion
 
-    private bool _isMenuOpen = false;
+    #region Runtime
+
+    private bool _isMenuOpen;
     private LobbyAvatarController _localPlayerController;
+
+    #endregion
+
+    #region Unity Events
 
     private void Awake()
     {
-        if (Instance == null) Instance = this;
-        else Destroy(gameObject);
+        if (Instance != null)
+        {
+            Destroy(gameObject);
+            return;
+        }
+
+        Instance = this;
     }
 
     private void Update()
     {
-        // Safety check: Ensure a keyboard device is plugged in/active before checking keys
-        if (Keyboard.current == null) return;
+        if (Keyboard.current == null)
+            return;
 
-        // New Input System equivalent of legacy Input.GetKeyDown(KeyCode.Escape)
         if (Keyboard.current.escapeKey.wasPressedThisFrame)
         {
-            // DIAGNOSTIC LOG: This will tell us exactly where the chain is breaking
-            Debug.Log($"[ESC Diagnostic] Key pressed! Panel Assigned: {_escMenuPanel != null} | Local Player Found: {_localPlayerController != null}");
-            
             ToggleESCMenu();
         }
     }
 
-    // This allows our NetworkPlayerSetup to register the local player instance when it spawns
+    #endregion
+
+    #region Public API
+
+    /// <summary>
+    /// Registers the local player's controller after it has been spawned.
+    /// </summary>
     public void RegisterLocalPlayer(LobbyAvatarController controller)
     {
         _localPlayerController = controller;
-        Debug.Log($"[LobbyUI] Local player successfully registered! Reference is: {controller.gameObject.name}");
+
+        Debug.Log($"[LobbyUI] Registered local player: {controller.gameObject.name}");
     }
 
+    /// <summary>
+    /// Opens or closes the ESC menu.
+    /// </summary>
     public void ToggleESCMenu()
     {
-        // If this hits, the menu will silently fail to open
+        if (!ValidateMenuState())
+            return;
+
+        _isMenuOpen = !_isMenuOpen;
+
+        _escMenuPanel.SetActive(_isMenuOpen);
+
+        UpdateCursorState(_isMenuOpen);
+        _localPlayerController.SetInputLock(_isMenuOpen);
+
+        Debug.Log(_isMenuOpen
+            ? "[LobbyUI] ESC menu opened."
+            : "[LobbyUI] ESC menu closed.");
+    }
+
+    public bool IsMenuOpen => _isMenuOpen;
+
+    #endregion
+
+    #region Helpers
+
+    private bool ValidateMenuState()
+    {
         if (_localPlayerController == null)
         {
-            Debug.LogWarning("[LobbyUI] Cannot toggle menu: No Local Player Controller has been registered yet!");
-            return;
+            Debug.LogWarning("[LobbyUI] Local player has not been registered.");
+            return false;
         }
 
         if (_escMenuPanel == null)
         {
-            Debug.LogError("[LobbyUI] Cannot toggle menu: The ESC Menu Panel slot is empty in the Inspector!");
-            return;
+            Debug.LogError("[LobbyUI] ESC Menu Panel reference is missing.");
+            return false;
         }
 
-        _isMenuOpen = !_isMenuOpen;
-        _escMenuPanel.SetActive(_isMenuOpen);
-
-        if (_isMenuOpen)
-        {
-            // Open Menu: Release the mouse and tell the controller to pause input tracking
-            Cursor.lockState = CursorLockMode.None;
-            Cursor.visible = true;
-            _localPlayerController.SetInputLock(true);
-            Debug.Log("[LobbyUI] Menu opened. Inputs locked, cursor freed.");
-        }
-        else
-        {
-            // Close Menu: Lock the mouse back down and wake up player input tracking
-            Cursor.lockState = CursorLockMode.Locked;
-            Cursor.visible = false;
-            _localPlayerController.SetInputLock(false);
-            Debug.Log("[LobbyUI] Menu closed. Inputs resumed, cursor locked.");
-        }
+        return true;
     }
 
-    // ==========================================
-    // EXPLICIT BUTTONS (Mapped to your new design)
-    // ==========================================
-
-    public void OnClickTeleportMissionControl()
+    private static void UpdateCursorState(bool menuOpen)
     {
-        if (_localPlayerController != null && _missionControlWaypoint != null)
-        {
-            _localPlayerController.TeleportTo(_missionControlWaypoint.position);
-            ToggleESCMenu();
-        }
+        Cursor.lockState = menuOpen
+            ? CursorLockMode.None
+            : CursorLockMode.Locked;
+
+        Cursor.visible = menuOpen;
     }
 
-    public void OnClickTeleportSettingsArea()
-    {
-        if (_localPlayerController != null && _settingsAreaWaypoint != null)
-        {
-            _localPlayerController.TeleportTo(_settingsAreaWaypoint.position);
-            ToggleESCMenu();
-        }
-    }
+    #endregion
 
-    public void OnClickTeleportTraitorCorner()
-    {
-        if (_localPlayerController != null && _traitorCornerWaypoint != null)
-        {
-            _localPlayerController.TeleportTo(_traitorCornerWaypoint.position);
-            ToggleESCMenu();
-        }
-    }
-
-    // ==========================================
-    // MODULAR BACKUP METHOD
-    // ==========================================
-    public void OnClickUniversalTeleport(Transform targetWaypoint)
-    {
-        if (_localPlayerController != null && targetWaypoint != null)
-        {
-            _localPlayerController.TeleportTo(targetWaypoint.position);
-            ToggleESCMenu();
-            Debug.Log($"[UI] Teleported local player to: {targetWaypoint.name}");
-        }
-    }
+    #region UI Buttons
 
     public void OnClickExitGame()
     {
-        Debug.Log("Exiting Game...");
+        Debug.Log("[LobbyUI] Exiting application.");
         Application.Quit();
     }
+
+    #endregion
 }
